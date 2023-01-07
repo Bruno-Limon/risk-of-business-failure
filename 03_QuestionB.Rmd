@@ -1,0 +1,380 @@
+---
+title: "Statistics for Data Science Project 2021/2022 - Risk of Business Failure"
+subtitle: "Question A"
+output: 
+  html_notebook:
+    toc: true
+    theme:
+      bootswatch: cerulean 
+---
+
+# Data Preparation
+***
+We load the necessary libraries as well as the aida dataset itself, along with any needed variable obtained during the first section.
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(forcats)
+```
+```{r}
+# cleaning the environment
+rm(list=ls())
+# loading the dataset
+load(file="aida.RData")
+# loading functions to be used
+source("functions.R")
+```
+```{r}
+```
+```{r}
+# features added by using the functions in "functions.R"
+aida <- getSize(aida)
+aida <- getGeoArea(aida)
+aida <- getStatus(aida) 
+aida <- getAge(aida)
+aida <- getATECO(aida)
+aida <- getLiquidity(aida)
+aida <- getSizeClass(aida)
+# separating dataset filtering by year
+aida.currYr <- getCurrYr(aida)
+aida.yr1 <- getYr1(aida)
+aida.yr2 <- getYr2(aida)
+# focusing on given years
+aida2017 <- aida.currYr[aida.currYr$`Last accounting closing date` == 2017,]
+aida2018 <- aida.currYr[aida.currYr$`Last accounting closing date` == 2018,]
+# dataset with given years
+years <- c(2017, 2018)
+aida1718 <- aida.currYr[aida.currYr$`Last accounting closing date` %in% years,]
+# focusing on failed companies
+aida2017F <- aida2017[aida2017$Status=='Failed',]
+aida2018F <- aida2018[aida2018$Status=='Failed',]
+aida1718F <- aida1718[aida1718$Status=='Failed',]
+```
+# 3.0 Question B
+***
+Compare the distributions of size/age/other of failed companies over different years? (Using years 2017 and 2018)
+
+- are there any shift for a specific company form (SPA, SRL, etc.)
+- are there any shift for a specific location? (eg., Tuscany, Lombardy, etc.)
+
+## 3.1 Age Distribution
+***
+Let us look at the density function of the age feature we obtained before at certain years, namely 2018, since that is the year where we have the biggest amount of information available.
+
+
+```{r, fig.width=10, fig.height=3}
+# density of company age at failure over the years 2017 and 2018
+ggplot(data=aida1718F, aes(x=Age, group=as.factor(`Last accounting closing date`), fill=as.factor(`Last accounting closing date`))) +
+  geom_density(adjust=1, alpha=.5) +
+  theme_light() +
+  labs(fill = "Years") + 
+  ggtitle("Density of company age at failure over the years 2017 and 2018")
+```
+```{r}
+# data for statistical tests, age distribution in 2018
+aida2017.FailedAge <- aida2017[aida2017$Status=='Failed','Age']
+aida2018.FailedAge <- aida2018[aida2018$Status=='Failed','Age']
+
+wilcox.test(aida2017.FailedAge, aida2018.FailedAge, alternative = 'two.sided')
+wilcox.test(aida2017.FailedAge, aida2018.FailedAge, alternative = 'less')
+wilcox.test(aida2017.FailedAge, aida2018.FailedAge, alternative = 'greater')
+
+t.test(aida2017.FailedAge, aida2018.FailedAge, alternative = 'two.sided')
+t.test(aida2017.FailedAge, aida2018.FailedAge, alternative = 'less')
+t.test(aida2017.FailedAge, aida2018.FailedAge, alternative = 'greater')
+
+ks.test(aida2017.FailedAge, aida2018.FailedAge, alternative = 'two.sided')
+ks.test(aida2017.FailedAge, aida2018.FailedAge, alternative = 'less')
+ks.test(aida2017.FailedAge, aida2018.FailedAge, alternative = 'greater')
+
+rm(aida2017.FailedAge, aida2018.FailedAge)
+```
+
+### 3.1.1 Age Distribution shift for specific company forms
+***
+In order to select a company form that would provide us with a statistically significant difference, we decided to take a look at how _Legal form_ interacts with _Age_. 
+
+```{r, fig.width=9, fig.height=4}
+# Distribution of failed companies over the years 2017 and 2018 depending on the legal form
+ggplot(aida1718F[aida1718F$`Legal form` == 'S.R.L.',], aes(x=Age, group=as.factor(`Last accounting closing date`), fill=as.factor(`Last accounting closing date`))) +
+  geom_boxplot(adjust=1, alpha=.5) +
+  theme_light() +
+  labs(fill = "Years") + 
+  theme(legend.position="bottom") +
+  ggtitle("Age and S.R.L. legal form in 2018")
+ggplot(aida1718F[aida1718F$`Legal form` == 'S.P.A.',], aes(x=Age, group=as.factor(`Last accounting closing date`), fill=as.factor(`Last accounting closing date`))) +
+  geom_boxplot(adjust=1, alpha=.5) +
+  theme_light() +
+  labs(fill = "Years") + 
+  theme(legend.position="bottom") +
+  ggtitle("Age and S.P.A. legal form in 2018")
+ggplot(data=aida1718F[aida1718F$`Legal form` == 'S.R.L.',], aes(x=Age, group=as.factor(`Last accounting closing date`), fill=as.factor(`Last accounting closing date`))) +
+  geom_density(adjust=1, alpha=.5) +
+  theme_light() +
+  theme(legend.position="bottom") +
+  labs(fill = "Years") + 
+  ggtitle("Density of failed companies over the years 2017 and 2018 with S.R.L. legal form")
+ggplot(data=aida1718F[aida1718F$`Legal form` == 'S.P.A.',], aes(x=Age, group=as.factor(`Last accounting closing date`), fill=as.factor(`Last accounting closing date`))) +
+  geom_density(adjust=1, alpha=.5) +
+  theme_light() +
+  theme(legend.position="bottom") +
+  labs(fill = "Years") + 
+  ggtitle("Density of failed companies over the years 2017 and 2018 with S.P.A. legal form")
+ggplot(aida1718F[aida1718F$`Last accounting closing date`==2017,], aes(x=Age, fill=`Legal form`)) +
+  #geom_boxplot(alpha=.5) +
+  geom_bar(alpha=.5) +
+  theme_light() +
+  labs(fill = "Legal form") + 
+  ggtitle("Distribution of companies at failure age by their legal form in 2017")
+ggplot(aida1718F[aida1718F$`Last accounting closing date`==2017,], aes(x=Age, fill=`Legal form`)) +
+  geom_boxplot(alpha=.5) +
+  theme_light() +
+  labs(fill = "Legal form") + 
+  ggtitle("Distribution of companies at failure age by their legal form in 2017")
+ggplot(aida1718F[aida1718F$`Last accounting closing date`==2018,], aes(x=Age, fill=`Legal form`)) +
+  #geom_boxplot(alpha=.5) +
+  geom_bar(alpha=.5) +
+  theme_light() +
+  labs(fill = "Legal form") + 
+  ggtitle("Distribution of companies at failure age by their legal form in 2018")
+ggplot(aida1718F[aida1718F$`Last accounting closing date`==2018,], aes(x=Age, fill=`Legal form`)) +
+  geom_boxplot(alpha=.5) +
+  theme_light() +
+  labs(fill = "Legal form") + 
+  ggtitle("Distribution of companies at failure age by their legal form in 2018")
+
+```
+
+```{r}
+# data for statistical tests, age distribution in 2018
+company.forms <- unique(aida1718F$`Legal form`)
+for(form.name in company.forms){
+  print("**************")
+  print(form.name)
+  print("**************")
+  
+  aida1718F.FailedAge17 <- aida1718F[aida1718F$`Last accounting closing date` == 2017 & aida1718F$`Legal form` == form.name,'Age']
+  aida1718F.FailedAge18 <- aida1718F[aida1718F$`Last accounting closing date` == 2018 & aida1718F$`Legal form` == form.name,'Age']
+  
+  if( length(aida1718F.FailedAge17)>100 & length(aida1718F.FailedAge18)>100 ){
+    print(t.test(aida1718F.FailedAge17,aida1718F.FailedAge18,alternative = 'less'))
+    print(t.test(aida1718F.FailedAge17,aida1718F.FailedAge18,alternative = 'greater'))
+    print("-----")
+    print(ks.test(aida1718F.FailedAge17,aida1718F.FailedAge18,alternative = 'less'))
+    print(ks.test(aida1718F.FailedAge17,aida1718F.FailedAge18,alternative = 'greater'))
+  }
+  else print("There are not enough observations")
+}
+# Remove data from stack
+rm(aida1718F.FailedAge17,aida1718F.FailedAge17)
+```
+
+
+### 3.1.2 Age Distribution for specific regions
+***
+
+```{r}
+# number of companies by region plot
+ggplot(data=aida1718F[aida1718F$`Last accounting closing date`==2017,], aes(x=(`Registered office address - Region`), fill=as.factor(`Last accounting closing date`))) +
+  geom_bar() +
+  coord_flip() +
+  theme(legend.key=element_blank(), legend.key.size=unit(13,"point")) +
+  labs(fill = "Year") +
+  ggtitle("Number of failed companies by region in 2017")
+ggplot(data=aida1718F[aida1718F$`Last accounting closing date`==2018,], aes(x=fct_infreq(`Registered office address - Region`), group=as.factor(`Last accounting closing date`), fill=`Registered office address - Region`)) +
+  geom_bar() +
+  coord_flip() +
+  theme(legend.key=element_blank(), legend.key.size=unit(13,"point")) +
+  labs(fill = "Year") +
+  ggtitle("Number of failed companies by region in 2018" )
+ggplot(data=aida1718F, aes(x=fct_infreq(`Registered office address - Region`), group=as.factor(`Last accounting closing date`), fill=as.factor(`Last accounting closing date`))) +
+  geom_bar(alpha=.5) +
+  coord_flip() +
+  theme(legend.key=element_blank(), legend.key.size=unit(13,"point")) +
+  labs(fill = "Year") +
+  ggtitle("Number of failed companies by region" )
+```
+
+As before with _Legal form_, we inspect the graphs of _Age_ and _Specific regions_ in search of interesting insights:
+
+```{r}
+# data for statistical tests, region distribution over 2017 and 2018
+company.regions <- unique(aida1718F$`Registered office address - Region`)
+for(region.name in company.regions){
+  print("**************")
+  print(region.name)
+  print("**************")
+  
+  aida2017.FailedAge17 <- aida2017F[aida2017F$`Registered office address - Region` == region.name,"Age"]
+  aida2018.FailedAge18 <- aida2018F[aida2018F$`Registered office address - Region` == region.name,"Age"]
+  
+  if( length(aida2017.FailedAge17)>100 & length(aida2018.FailedAge18)>100 ){
+    print(t.test(aida2017.FailedAge17,aida2018.FailedAge18,alternative = 'less'))
+    print(t.test(aida2017.FailedAge17,aida2018.FailedAge18,alternative = 'greater'))
+    #print("-----")
+    #print(ks.test(aida2017.FailedAge17,aida2018.FailedAge18,alternative = 'less'))
+    #print(ks.test(aida2017.FailedAge17,aida2018.FailedAge18,alternative = 'greater'))
+  }
+  else print("There are not enough observations")
+}
+
+```
+
+
+## 3.2 Size Distribution
+***
+Let us look at the density function of the size feature we obtained before at certain years, from year 2018 backwards
+
+
+```{r, fig.width=10, fig.height=3}
+# density of company size at failure over the years 2017 and 2018
+ggplot(data=aida1718F, aes(x=Size, group=as.factor(`Last accounting closing date`), fill=as.factor(`Last accounting closing date`))) +
+  geom_density(adjust=1, alpha=.5) +
+  theme_light() +
+  labs(fill = "Years") + 
+  ggtitle("Density of company size at failure over the years 2017 and 2018")
+ggplot(data=aida1718F, aes(x=SizeClass, group=as.factor(`Last accounting closing date`), fill=as.factor(`Last accounting closing date`))) +
+  geom_bar(alpha=.5) +
+  theme_light() +
+  labs(fill = "Years") + 
+  ggtitle("Density of company size at failure over the years 2017 and 2018")
+```
+```{r}
+# data for statistical tests, age distribution in 2018
+aida2017.FailedSize <- aida2017[aida2017$Status=='Failed','Size']
+aida2018.FailedSize <- aida2018[aida2018$Status=='Failed','Size']
+
+wilcox.test(aida2017.FailedSize, aida2018.FailedSize, alternative = 'two.sided')
+wilcox.test(aida2017.FailedSize, aida2018.FailedSize, alternative = 'less')
+wilcox.test(aida2017.FailedSize, aida2018.FailedSize, alternative = 'greater')
+
+t.test(aida2017.FailedSize, aida2018.FailedSize, alternative = 'two.sided')
+t.test(aida2017.FailedSize, aida2018.FailedSize, alternative = 'less')
+t.test(aida2017.FailedSize, aida2018.FailedSize, alternative = 'greater')
+
+ks.test(aida2017.FailedSize, aida2018.FailedSize, alternative = 'two.sided')
+ks.test(aida2017.FailedSize, aida2018.FailedSize, alternative = 'less')
+ks.test(aida2017.FailedSize, aida2018.FailedSize, alternative = 'greater')
+
+rm(aida2017.FailedSize, aida2018.FailedSize)
+```
+
+
+
+### 3.2.1 Size Distribution for specific company forms
+***
+In order to select a company form that would provide us with a statistically significant difference, we decided to take a look at how _Legal form_ interacts with _Size_. 
+
+```{r, fig.width=9, fig.height=4}
+# Distribution of failed companies over the years 2017 and 2018 depending on the legal form
+ggplot(aida1718F[aida1718F$`Legal form` == 'S.R.L.',], aes(x=Size, group=as.factor(`Last accounting closing date`), fill=as.factor(`Last accounting closing date`))) +
+  geom_boxplot(alpha=.5) +
+  theme_light() +
+  labs(fill = "Years") +
+  theme(legend.position="bottom") +
+  ggtitle("Distribution of size and S.R.L. legal form in selected years")
+ggplot(aida1718F[aida1718F$`Legal form` == 'S.P.A.',], aes(x=Size, group=as.factor(`Last accounting closing date`), fill=as.factor(`Last accounting closing date`))) +
+  geom_boxplot(alpha=.5) +
+  theme_light() +
+  labs(fill = "Years") + 
+  theme(legend.position="bottom") +
+  ggtitle("Distribution of size and S.P.A. legal form in selected years")
+ggplot(data=aida1718F[aida1718F$`Legal form` == 'S.R.L.',], aes(x=Size, group=as.factor(`Last accounting closing date`), fill=as.factor(`Last accounting closing date`))) +
+  geom_density(adjust=1, alpha=.5) +
+  theme_light() +
+  labs(fill = "Years") +
+  theme(legend.position="bottom") +
+  ggtitle("Density of failed companies over the years 2017 and 2018 with S.R.L. legal form")
+ggplot(data=aida1718F[aida1718F$`Legal form` == 'S.P.A.',], aes(x=Size, group=as.factor(`Last accounting closing date`), fill=as.factor(`Last accounting closing date`))) +
+  geom_density(adjust=1, alpha=.5) +
+  theme_light() +
+  theme(legend.position="bottom") +
+  labs(fill = "Years") + 
+  ggtitle("Density of failed companies over the years 2017 and 2018 with S.P.A. legal form")
+ggplot(aida1718F[aida1718F$`Last accounting closing date`==2017,], aes(x=Size, fill=`Legal form`)) +
+  geom_boxplot(alpha=.5) +
+  theme_light() +
+  labs(fill = "Legal form") + 
+  ggtitle("Distribution of companies at failure size by their legal form in 2017")
+ggplot(aida1718F[aida1718F$`Last accounting closing date`==2018,], aes(x=Size, fill=`Legal form`)) +
+  geom_boxplot(alpha=.5) +
+  theme_light() +
+  labs(fill = "Legal form") + 
+  ggtitle("Distribution of companies at failure size by their legal form in 2018")
+
+```
+
+
+```{r}
+# data for statistical tests, age distribution in 2018
+company.forms <- unique(aida1718F$`Legal form`)
+for(form.name in company.forms){
+  print("**************")
+  print(form.name)
+  print("**************")
+  
+  aida1718F.FailedSize17 <- aida1718F[aida1718F$`Last accounting closing date` == 2017 & aida1718F$`Legal form` == form.name,'Size']
+  aida1718F.FailedSize18 <- aida1718F[aida1718F$`Last accounting closing date` == 2018 & aida1718F$`Legal form` == form.name,'Size']
+  
+  if( length(aida1718F.FailedSize17)>100 & length(aida1718F.FailedSize18)>100 ){
+    print(t.test(aida1718F.FailedSize17,aida1718F.FailedSize18,alternative = 'less'))
+    print(t.test(aida1718F.FailedSize17,aida1718F.FailedSize18,alternative = 'greater'))
+    print("-----")
+    print(ks.test(aida1718F.FailedSize17,aida1718F.FailedSize18,alternative = 'less'))
+    print(ks.test(aida1718F.FailedSize17,aida1718F.FailedSize18,alternative = 'greater'))
+  }
+  else print("There are not enough observations")
+}
+# Remove data from stack
+rm(aida1718F.FailedSize17, aida1718F.FailedSize17)
+```
+
+
+### 3.2.2 Size Distribution for specific Sizes
+***
+As before with _Legal form_, we inspect the graphs of _Size_ and _Specific regions_ in search of interesting insights:
+
+```{r}
+# number of companies by region plot
+ggplot(data=aida1718F[aida1718F$`Last accounting closing date`==2017,], aes(x=fct_infreq(`Registered office address - Region`), fill=SizeClass)) +
+  geom_bar(alpha=0.5) +
+  coord_flip() +
+  theme(legend.key=element_blank(), legend.key.size=unit(13,"point")) +
+  labs(fill = "Size") +
+  ggtitle("Number of failed companies by region and size in 2017")
+ggplot(data=aida1718F[aida1718F$`Last accounting closing date`==2018,], aes(x=fct_infreq(`Registered office address - Region`), fill=SizeClass)) +
+  geom_bar(alpha=0.5) +
+  coord_flip() +
+  theme(legend.key=element_blank(), legend.key.size=unit(13,"point")) +
+  labs(fill = "Size") +
+  ggtitle("Number of failed companies by region and size in 2018" )
+
+```
+
+```{r}
+# data for statistical tests, region distribution over 2017 and 2018
+company.regions <- unique(aida1718F$`Registered office address - Region`)
+for(region.name in company.regions){
+  print("**************")
+  print(region.name)
+  print("**************")
+  
+  aida2017.FailedSize17 <- aida2017F[aida2017F$`Registered office address - Region` == region.name,"Size"]
+  aida2018.FailedSize18 <- aida2018F[aida2018F$`Registered office address - Region` == region.name,"Size"]
+  
+  if( length(aida2017.FailedSize17)>100 & length(aida2018.FailedSize18)>100 ){
+    print(t.test(aida2017.FailedSize17,aida2018.FailedSize18,alternative = 'less'))
+    print(t.test(aida2017.FailedSize17,aida2018.FailedSize18,alternative = 'greater'))
+    print("-----")
+    print(ks.test(aida2017.FailedSize17,aida2018.FailedSize18,alternative = 'less'))
+    print(ks.test(aida2017.FailedSize17,aida2018.FailedSize18,alternative = 'greater'))
+  }
+  else print("There are not enough observations")
+}
+
+```
+
+
+
+
