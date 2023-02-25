@@ -1,0 +1,335 @@
+---
+title: "Statistics for Data Science Project 2021/2022 - Risk of Business Failure"
+subtitle: "Data Understanding & Preprocessing"
+output: 
+  html_notebook:
+    toc: true
+    theme:
+      bootswatch: cerulean   
+---
+By:  
+Carla Lorena Trejo Silva\
+Jordanos Feyissa Gemechu\
+Bruno Javier Limon Avila\
+
+```{r}
+library(ggplot2)
+library(skimr)
+library(forcats)
+library(moments)
+```
+```{r}
+# cleaning the environment
+rm(list=ls())
+# loading the dataset
+load(file="aida.RData")
+# loading functions to be used
+source("functions.R")
+```
+# 1.0 Data Understanding & Preprocessing
+***
+Taking a look at the features within our dataset, searching for NA and anomalies, while also making the necessary changes in order to perform further analysis.
+
+## 1.1 Data Understanding
+***
+Summary of dataset divided by type of variable. Includes information like number of missing and unique values, as well as mean and percentiles for the numerical variables
+```{r}
+skim(aida)
+```  
+```{r}
+# first rows of the dataset
+head(aida)
+```
+```{r}
+# a first in-depth look at some of the features, particularly those that stand out from the others, which repeat themselves for current and previous 2 years. Here we take a look at their unique values and their frequency
+table(aida$`Incorporation year`)
+table(aida$`Last accounting closing date`)
+table(aida$`Legal status`)
+table(aida$`Legal form`)
+table(aida$`Registered office address - Region`)
+```
+## 1.2 Data Preprocessing
+***
+### 1.2.1 Creation of new variables
+***
+features added by using the functions in "functions.R"
+- size is obtained with the log(aida$Total assetsth EURLast avail. yr)
+- age is equal to the difference between last accounting closing date and incorporation year
+- status is considered active for every legal status != active
+```{r}
+aida <- getSize(aida)
+aida <- getGeoArea(aida)
+aida <- getStatus(aida)
+aida <- getAge(aida)
+aida <- getATECO(aida)
+aida <- getLiquidity(aida)
+```
+```{r}
+# separating dataset filtering by historical data
+aida.currYr <- getCurrYr(aida)
+aida.yr1 <- getYr1(aida)
+aida.yr2 <- getYr2(aida)
+```
+```{r}
+# further dividing the dataset, this time by year of last accounting date
+aida2017 <- aida.currYr[aida.currYr$`Last accounting closing date` == 2017,]
+aida2018 <- aida.currYr[aida.currYr$`Last accounting closing date` == 2018,]
+aida2019 <- aida.currYr[aida.currYr$`Last accounting closing date` == 2019,]
+```
+```{r}
+actyear <- c('2017','2017','2018','2018','2019','2019')
+actstatus <- c('Active','Failed','Active','Failed','Active','Failed')
+actFrequency <- c(table(aida2017$Status),table(aida2018$Status),table(aida2019$Status))
+ActiveFailedTable <- data.frame(Year=actyear, Status=actstatus, Frequency=actFrequency)
+knitr::kable(ActiveFailedTable, caption = 'Frequency of Active and Failed companies in the last 3 years')
+
+rm(actyear, actstatus, actFrequency, ActiveFailedTable)
+```
+```{r}
+knitr::kable(table(aida$GeoArea), caption = 'Frequency of companies based on Geographical Location')
+```
+## 1.3 Data Visualization
+***
+```{r}
+# number of companies by legal status plot
+ggplot(data=aida, aes(x=fct_infreq(`Legal status`), fill=`Legal status`)) +
+  geom_bar() +
+  coord_flip() +
+  theme_bw() +
+  theme(legend.key=element_blank(), legend.key.size=unit(13,"point")) + 
+  ggtitle("Number of companies by legal status")
+```
+```{r}
+# number of companies by legal form plot
+ggplot(data=aida, aes(x=fct_infreq(`Legal form`), fill=`Status`)) +
+  geom_bar() +
+  coord_flip() +
+  theme_bw() +
+  theme(legend.key=element_blank(), legend.key.size=unit(13,"point")) +
+  ggtitle("Number of companies by legal form")
+```
+```{r}
+# number of companies by region plot
+ggplot(data=aida, aes(x=fct_infreq(`Registered office address - Region`), fill=`Status`)) +
+  geom_bar() +
+  coord_flip() +
+  theme_bw() +
+  theme(legend.key=element_blank(), legend.key.size=unit(13,"point")) +
+  ggtitle("Number of companies by region")
+```
+```{r}
+ggplot(data=aida, aes(x=ATECO.Sector.Name, fill=Status)) +
+  geom_bar() +
+  theme_bw() +
+  coord_flip() +
+  theme(legend.key=element_blank(), legend.key.size=unit(13,"point")) +
+  ggtitle("Number of companies of each ATECO sector divided by Active/Failed")
+```
+```{r}
+# number of companies by geographic area plot
+ggplot(data=aida, aes(x=`GeoArea`, fill=`GeoArea`)) +
+  geom_bar() +
+  coord_flip() +
+  theme_bw() +
+  theme(legend.key=element_blank(), legend.key.size=unit(13,"point")) +
+  ggtitle("Number of companies by geographic area")
+```
+```{r}
+# number of companies by size plot
+ggplot(data=aida, aes(x=`Status`, fill=`Status`)) +
+  geom_bar() +
+  theme_bw() +
+  coord_flip() +
+  theme(legend.key=element_blank(), legend.key.size=unit(13,"point")) +
+  ggtitle("Number of active and failed companies")
+```
+```{r}
+# distribution of age plot
+ggplot(data=aida, aes(x=`Age`, fill=`Age`)) +
+  geom_histogram(aes(y = ..density..), binwidth=2, colour = 1, fill = "white") +
+  geom_density(lwd = 1, colour = 4) +
+  geom_vline(xintercept = mean(aida$Age), col = "red", lwd = .8, lty = 2) +
+  theme_bw() + 
+  ggtitle("Company frequency distribution of age")
+```
+```{r}
+# density of size(Total assets) plot
+h <- hist(aida$Size, breaks = "FD", plot = FALSE)
+ggplot(data=aida, aes(x=`Size`, fill=`Size`)) +
+  geom_histogram(aes(y = ..density..), breaks = h$breaks, colour = "gray", fill = "white") +
+  geom_density(lwd = 1, colour = 4) +
+  geom_vline(xintercept = mean(aida$Size), col = "red", lwd = .8, lty = 2) +
+  theme_bw() + 
+  ggtitle("Company frequency distribution of Size")
+```
+```{r}
+# density of Liquidity plot
+h <- hist(aida$LiquidityRatio, breaks = "FD", plot = FALSE)
+ggplot(data=aida, aes(x=`LiquidityRatio`, fill=`LiquidityRatio`)) +
+  geom_histogram(aes(y = ..density..), breaks = h$breaks, colour = "gray", fill = "white") +
+  geom_density(lwd = 1, colour = 4) +
+  geom_vline(xintercept = mean(aida$LiquidityRatio), col = "red", lwd = .8, lty = 2) +
+  theme_bw() +  
+  ggtitle("Company frequency distribution of Liquidity")
+```
+Analyzing skewness and kurtosis of some variables
+```{r}
+skewness(aida$Age)
+kurtosis(aida$Age)
+
+skewness(aida$Size)
+kurtosis(aida$Size)
+
+skewness(aida$LiquidityRatio)
+kurtosis(aida$LiquidityRatio)
+```
+
+```{r}
+# Boxplot age and region
+ggplot( data=aida, aes(x=Age, GeoArea)) +
+  geom_boxplot() +
+  theme_bw() +
+  ggtitle("Age and Geographical Region boxplot")
+```
+## 1.4 Anomaly Detection
+***
+```{r}
+# Boxplot age
+ggplot( data=aida, aes(x=Age)) +
+  geom_boxplot() +
+  theme_bw() +
+  ggtitle("Age boxplot")
+```
+```{r}
+iqr <- IQR(aida$Age)
+q1 <- quantile(aida$Age,0.10)
+q3 <- quantile(aida$Age,0.90)
+lower.whisker <- q1 - 1.5*iqr
+upper.whisker <- q3 + 1.5*iqr 
+
+min(aida$Age)
+max(aida$Age)
+mean(aida$Age)
+q1
+q3
+```
+```{r, fig.width=9, fig.height=4}
+# Boxplot Age and Legal form
+ggplot( data=aida, aes(x=Age, `Legal form`)) +
+  geom_boxplot() +
+  theme_bw() +
+  ggtitle("Age and Legal form")
+```
+
+```{r, fig.width=9, fig.height=4}
+# Boxplot Age and ATECO sector
+ggplot( data=aida, aes(x=Age, `ATECO.Sector.Name`)) +
+  geom_boxplot() +
+  theme_bw() +
+  ggtitle("Age and ATECO sector")
+```
+```{r, fig.width=9, fig.height=4}
+# Boxplot Age and Region
+ggplot( data=aida, aes(x=Age, `Registered office address - Region`)) +
+  geom_boxplot() +
+  theme_bw() +
+  ggtitle("Age and Region boxplot")
+```
+```{r}
+# Boxplot Size before log(Total assets)
+ggplot( data=aida,aes(x=`Total assetsth EURLast avail. yr`)) +
+  geom_boxplot() +
+  theme_bw() +
+  ggtitle("Total assetsth EURLast avail. yr boxplot")
+```
+```{r}
+# Boxplot Size (Total assets)
+ggplot( data=aida,aes(x=Size)) +
+  geom_boxplot() +
+  theme_bw() +
+  ggtitle("Size boxplot")
+```
+```{r}
+iqr <- IQR(aida$Size)
+q1 <- quantile(aida$Size,0.10)
+q3 <- quantile(aida$Size,0.90)
+lower.whisker <- q1 - 1.5*iqr
+upper.whisker <- q3 + 1.5*iqr 
+
+min(aida$Size)
+max(aida$Size)
+mean(aida$Size)
+q1
+q3
+```
+```{r, fig.width=9, fig.height=4}
+# Boxplot size and Legal form
+ggplot( data=aida, aes(x=Size, `Legal form`)) +
+  geom_boxplot() +
+  theme_bw() +
+  ggtitle("Size and Legal form")
+```
+
+```{r, fig.width=9, fig.height=4}
+# Boxplot size and ATECO sector
+ggplot( data=aida, aes(x=Size, `ATECO.Sector.Name`)) +
+  geom_boxplot() +
+  theme_bw() +
+  ggtitle("Size and ATECO sector")
+```
+```{r, fig.width=9, fig.height=4}
+# Boxplot age and Region
+ggplot( data=aida, aes(x=Size, `Registered office address - Region`)) +
+  geom_boxplot() +
+  theme_bw() +
+  ggtitle("Size and Region boxplot")
+```
+
+```{r}
+# Boxplot Liquidity
+ggplot( aida, aes(x=LiquidityRatio)) +
+  geom_boxplot() +
+  theme_bw() +
+  ggtitle("Liquidity Boxplot")
+```
+```{r}
+iqr <- IQR(aida$LiquidityRatio)
+q1 <- quantile(aida$LiquidityRatio,0.10)
+q3 <- quantile(aida$LiquidityRatio,0.90)
+lower.whisker <- q1 - 1.5*iqr
+upper.whisker <- q3 + 1.5*iqr 
+
+min(aida$LiquidityRatio)
+max(aida$LiquidityRatio)
+mean(aida$LiquidityRatio)
+q1
+q3
+```
+```{r, fig.width=9, fig.height=4}
+# Boxplot size and Legal form
+ggplot( data=aida, aes(x=LiquidityRatio, `Legal form`)) +
+  geom_boxplot() +
+  theme_bw() +
+  ggtitle("LiquidityRatio and Legal form")
+```
+```{r, fig.width=9, fig.height=4}
+# Boxplot size and ATECO sector
+ggplot( data=aida, aes(x=LiquidityRatio, `ATECO.Sector.Name`)) +
+  geom_boxplot() +
+  theme_bw() +
+  ggtitle("LiquidityRatio and ATECO sector")
+```
+```{r, fig.width=9, fig.height=4}
+# Boxplot age and Region
+ggplot( data=aida, aes(x=LiquidityRatio, `Registered office address - Region`)) +
+  geom_boxplot() +
+  theme_bw() +
+  ggtitle("LiquidityRatio and Region boxplot")
+```
+```{r}
+# Boxplot cash flow (Total assets)
+ggplot( data=aida,aes(x=`Cash Flowth EURLast avail. yr`)) +
+  geom_boxplot() +
+  theme_bw() +
+  ggtitle("Cash Flow boxplot")
+```
