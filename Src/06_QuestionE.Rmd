@@ -1,0 +1,147 @@
+---
+title: "Statistics for Data Science Project 2021/2022 - Risk of Business Failure"
+subtitle: "Question E"
+output: 
+  html_notebook:
+    toc: true
+    theme:
+      bootswatch: cerulean
+---
+By:  
+Carla Lorena Trejo Silva\
+Jordanos Feyissa Gemechu\
+Bruno Javier Limon Avila\
+
+# Data Preparation
+***
+```{r}
+library(caret)
+library(modelbased)
+```
+```{r}
+# cleaning the environment
+rm(list=ls())
+# loading the dataset
+load(file="aida.RData")
+# loading functions to be used
+source("functions.R")
+```
+```{r}
+# features added by using the functions in "functions.R"
+aida <- getSize(aida)
+aida <- getGeoArea(aida)
+aida <- getStatus(aida)
+aida <- getAge(aida)
+# separating dataset filtering by year
+aida.currYr <- getCurrYr(aida)
+```
+# 6.0 Question E
+***
+Uncertainty in score predictions, i.e., using confidence intervals for each prediction
+
+***
+### 6.1 Confidence intervals for testing set predictions
+```{r}
+year_filter <- c("2014", "2015", "2016", "2017")
+logreg_data <- filter(aida.currYr, `Last accounting closing date` %in% year_filter)
+logreg_data <- na.omit(logreg_data)
+
+# droping unnecessary columns for the logistic regression model
+droplist <- c('ATECO 2007code','Company name','File','Tax code number','Legal form','Legal status','Province','Registered office address - Commune ISTAT code','Registered office address - Region','Incorporation year','Last accounting closing date', 'ATECO.Sector.Description', 'ATECO.Sector.Name', 'Total assetsth EURLast avail. yr', 'Return on asset (ROA)%Last avail. yr', 'EBITDAth EURLast avail. yr', 'Cash Flowth EURLast avail. yr', "Number of employeesLast avail. yr", "Return on sales (ROS)%Last avail. yr", "Liquidity ratioLast avail. yr", "Net working capitalth EURLast avail. yr", "Net financial positionth EURLast avail. yr")
+logreg_data <- logreg_data[, !colnames(logreg_data) %in% droplist]
+
+# turning the class 'Status' into 1 for active and 0 for failed
+logreg_data$Status <- ifelse(logreg_data$Status == "Failed", 1, 0)
+logreg_data$Status <- as.factor(logreg_data$Status)
+# turning the variable 'geographical area' into 0 for south, 1 for center and 2 for north
+logreg_data$GeoArea <- unclass(logreg_data$GeoArea)
+logreg_data$GeoArea <- as.factor(logreg_data$GeoArea)
+
+# Split train and test data
+# Holdout method; 70% training data
+set.seed(42)
+holdout <- createDataPartition(logreg_data$Status, p=0.7, list = F) 
+X_train <- logreg_data[holdout, ]
+X_test <- logreg_data[-holdout, ]
+
+rm(holdout, droplist)
+```
+
+```{r}
+x <- seq(1, 40, by = 1)
+logreg <- glm(Status ~ ., data=X_train, family = "binomial")
+pred <- predict(logreg, newdata = X_test, type = "link", se.fit=T)
+
+logit_transform = function(x){exp(x)/(1+exp(x))}
+logit <- pred$fit
+upper.logit <- logit + 1.96*pred$se.fit
+lower.logit <- logit - 1.96*pred$se.fit
+
+upper.prob <- logit_transform(upper.logit)
+expected <- logit_transform(logit)
+lower.prob <- logit_transform(lower.logit)
+
+plot(x, expected[1:40], ylim=c(.1,.6), xlab="Observations", ylab="Predicted probability", main="Sample of points and their predicted probability within a 95% CI")
+points(x, upper.prob[1:40], col="blue")
+points(x, lower.prob[1:40], col="darkorange")
+legend("topright", legend=c("Upper confidence", "Prediction", "Lower confidence"), col=c("blue", "black", "darkorange"), pch="o")
+```
+
+```{r}
+upper.prob[1]
+expected[1]
+lower.prob[1]
+
+pred <- predict(logreg, newdata = X_test, type = "response",)
+pred[1]
+```
+```{r}
+logreg <- glm(Status ~ ., family = "binomial", data=X_train)
+expec <- estimate_expectation(model = logreg, ci = 0.95, data = X_test)
+
+expec$CI_high[1]
+expec$Predicted[1]
+expec$CI_low[1]
+```
+```{r}
+x <- seq(1, 40, by = 1)
+  
+plot(x, expec$CI_high[1:40], xlab="Observations", ylab="Predicted probability", col="blue", ylim=c(.1, .6), main="Sample of points and their predicted probability within a 95% CI")
+points(x, expec$CI_low[1:40], col = "darkorange")
+points(x, expec$Predicted[1:40])
+legend("topright", legend=c("Upper confidence", "Prediction", "Lower confidence"), col=c("blue", "black", "darkorange"), pch="o")
+```
+
+### 6.2 Visualization on a single variable
+***
+```{r}
+x <- X_train$Age
+y <- X_train$Status
+
+logreg <- glm(y ~ x, family = "binomial")
+expec <- estimate_expectation(model = logreg, ci = 0.95)
+
+plot(x, expec$CI_high, xlab="Age", ylab="Predicted probability", col="blue", ylim = c(.35, .75), main="Predictions with 95% Confidence Interval")
+points(x, expec$CI_low, col = "darkorange")
+points(x, expec$Predicted)
+legend("bottomright", legend=c("Upper confidence", "Prediction", "Lower confidence"), col=c("blue", "black", "darkorange"), pch="o")
+```
+
+```{r}
+new <- data.frame(x = seq(1, 118, by = 1))
+
+logreg <- glm(y ~ x, family = "binomial")
+pred <- predict.glm(logreg, newdata = new, type = "link", se.fit=T)
+
+logit <- pred$fit
+upper.logit <- logit + 1.96*pred$se.fit
+lower.logit <- logit - 1.96*pred$se.fit
+
+upper.prob <- logit_transform(upper.logit)
+lower.prob <- logit_transform(lower.logit)
+
+plot(x, logreg$fitted.values, ylim = c(.35, .75), xlab="Age", ylab="Fitted Values", main="Predictions and their confidence bands")
+lines(new$x, upper.prob, col = "blue")
+lines(new$x, lower.prob, col = "darkorange")
+legend("bottomright", legend=c("Upper confidence band", "Model fitted values", "Lower confidence band"), col=c("blue", "black", "darkorange"), lty =1)
+```
