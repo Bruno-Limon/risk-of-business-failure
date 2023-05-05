@@ -27,7 +27,7 @@ getGeoArea<-function(data) {
 
 # get company size
 getSize <- function(data) {
-  if ("Size" %in% colnames(data)) 
+  if ("Size" %in% colnames(data))
     return (data)
 
   data <- data[!is.na(data$`Total assetsth EURLast avail. yr`),]
@@ -47,16 +47,15 @@ getSizeClass <- function(data) {
   data$SizeClass <- factor("Medium", levels = c("Medium", "Small", "Large"))
   data$SizeClass[data$`Number of employeesLast avail. yr` <= 50] <- "Small"
   data$SizeClass[data$`Number of employeesLast avail. yr` >= 250] <- "Large"
-  
+
   data$SizeClass <- as.factor(data$SizeClass)
   return(data)
 }
 
 # get liquidity
 getLiquidity <- function(data) {
-  if ("LiqudiityRatio" %in% colnames(data)) 
-    return (data)
-  
+  if ("LiqudiityRatio" %in% colnames(data))
+    return(data)
   data <- data[!is.na(data$`Liquidity ratioLast avail. yr`),]
   data$LiquidityRatio <- data$`Liquidity ratioLast avail. yr`
 
